@@ -67,6 +67,23 @@ main() {
     # Module selection
     prompt_module_selection
 
+    # Second confirmation before making real changes
+    if [[ "$DRY_RUN" != true && "$YES_MODE" != true ]]; then
+        echo ""
+        warn "$(msg CONFIRM_WARN)"
+        info "$(msg CONFIRM_DRY_RUN_HINT)"
+        echo ""
+        read -r -p "$(msg CONFIRM_PROMPT) " confirm || true
+        case "${confirm:-}" in
+            y|Y|yes|YES)
+                ;;
+            *)
+                log "$(msg CONFIRM_ABORTED)"
+                exit 0
+                ;;
+        esac
+    fi
+
     # Execute only selected + applicable modules
     local mod_funcs=(run_module_00 run_module_01 run_module_02 run_module_03 run_module_04 run_module_05 run_module_06 run_module_07 run_module_08 run_module_09)
     for i in "${!mod_funcs[@]}"; do

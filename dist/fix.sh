@@ -396,6 +396,19 @@ MSG_AUDIT_GIT_CN="检查 git 仓库自以下日期起的异常提交："
 MSG_AUDIT_K8S_EN="Check Kubernetes events for anomalies"
 MSG_AUDIT_K8S_CN="检查 Kubernetes 事件是否有异常"
 
+# -- Confirmation --
+MSG_CONFIRM_WARN_EN="WARNING: This will modify your system (rotate keys, clean history, etc.)"
+MSG_CONFIRM_WARN_CN="警告：即将修改你的系统（轮换密钥、清理历史记录等）"
+
+MSG_CONFIRM_DRY_RUN_HINT_EN="Run with --dry-run first to preview changes."
+MSG_CONFIRM_DRY_RUN_HINT_CN="建议先用 --dry-run 预览变更。"
+
+MSG_CONFIRM_PROMPT_EN="Are you sure you want to proceed? [y/N]"
+MSG_CONFIRM_PROMPT_CN="确认要继续吗？[y/N]"
+
+MSG_CONFIRM_ABORTED_EN="Aborted by user."
+MSG_CONFIRM_ABORTED_CN="用户已取消。"
+
 # -- Footer --
 MSG_COMPLETE_EN="Script execution complete!"
 MSG_COMPLETE_CN="脚本执行完成！"
@@ -1484,6 +1497,23 @@ main() {
 
     # Module selection
     prompt_module_selection
+
+    # Second confirmation before making real changes
+    if [[ "$DRY_RUN" != true && "$YES_MODE" != true ]]; then
+        echo ""
+        warn "$(msg CONFIRM_WARN)"
+        info "$(msg CONFIRM_DRY_RUN_HINT)"
+        echo ""
+        read -r -p "$(msg CONFIRM_PROMPT) " confirm || true
+        case "${confirm:-}" in
+            y|Y|yes|YES)
+                ;;
+            *)
+                log "$(msg CONFIRM_ABORTED)"
+                exit 0
+                ;;
+        esac
+    fi
 
     # Execute only selected + applicable modules
     local mod_funcs=(run_module_00 run_module_01 run_module_02 run_module_03 run_module_04 run_module_05 run_module_06 run_module_07 run_module_08 run_module_09)

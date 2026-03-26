@@ -331,6 +331,19 @@ MSG_AUDIT_GIT_CN="检查 git 仓库自以下日期起的异常提交："
 MSG_AUDIT_K8S_EN="Check Kubernetes events for anomalies"
 MSG_AUDIT_K8S_CN="检查 Kubernetes 事件是否有异常"
 
+# -- Confirmation --
+MSG_CONFIRM_WARN_EN="WARNING: This will modify your system (rotate keys, clean history, etc.)"
+MSG_CONFIRM_WARN_CN="警告：即将修改你的系统（轮换密钥、清理历史记录等）"
+
+MSG_CONFIRM_DRY_RUN_HINT_EN="Run with --dry-run first to preview changes."
+MSG_CONFIRM_DRY_RUN_HINT_CN="建议先用 --dry-run 预览变更。"
+
+MSG_CONFIRM_PROMPT_EN="Are you sure you want to proceed? [y/N]"
+MSG_CONFIRM_PROMPT_CN="确认要继续吗？[y/N]"
+
+MSG_CONFIRM_ABORTED_EN="Aborted by user."
+MSG_CONFIRM_ABORTED_CN="用户已取消。"
+
 # -- Footer --
 MSG_COMPLETE_EN="Script execution complete!"
 MSG_COMPLETE_CN="脚本执行完成！"
