@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 # =============================================================================
 # Apifox Incident Fix - Integration Test
-# Runs in an isolated HOME directory, never touches real user data.
-# Supports macOS and Linux.
+#
+# Runs in isolated HOME directories, never touches real user data.
+# Does NOT use set -euo pipefail — test harness must survive failures
+# to report all results and print the summary.
 #
 # Usage:
 #   ./test.sh              # Run all tests
@@ -26,9 +27,9 @@ PASS=0
 FAIL=0
 SKIP=0
 
-pass() { ((PASS++)); echo -e "${GREEN}PASS${NC}: $1"; }
-fail() { ((FAIL++)); echo -e "${RED}FAIL${NC}: $1"; }
-skip() { ((SKIP++)); echo -e "${YELLOW}SKIP${NC}: $1"; }
+pass() { PASS=$((PASS + 1)); echo -e "${GREEN}PASS${NC}: $1"; }
+fail() { FAIL=$((FAIL + 1)); echo -e "${RED}FAIL${NC}: $1"; }
+skip() { SKIP=$((SKIP + 1)); echo -e "${YELLOW}SKIP${NC}: $1"; }
 
 # --- Detect platform ---
 OS_TYPE=""
@@ -38,15 +39,31 @@ case "$(uname -s)" in
     *)      OS_TYPE="unknown" ;;
 esac
 
+# --- Check if a command exists ---
+has_cmd() { command -v "$1" &>/dev/null; }
+
+# --- Create fake SSH keys without ssh-keygen ---
+# Writes a minimal PEM-like file that scan_ssh_keys() will recognize
+create_fake_key() {
+    local path="$1"
+    cat > "$path" <<'KEYEOF'
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+KEYEOF
+    # Create matching .pub
+    echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFake test@test" > "${path}.pub"
+}
+
 # --- Create isolated test environment ---
+# Uses no external tools beyond basic coreutils
 setup_test_home() {
     local test_home
     test_home="$(mktemp -d)"
 
-    # SSH keys
+    # SSH keys (fake — no ssh-keygen dependency)
     mkdir -p "$test_home/.ssh"
-    ssh-keygen -t ed25519 -f "$test_home/.ssh/id_ed25519" -N "" -q
-    ssh-keygen -t rsa -b 2048 -f "$test_home/.ssh/id_rsa_test" -N "" -q
+    create_fake_key "$test_home/.ssh/id_ed25519"
+    create_fake_key "$test_home/.ssh/id_rsa_test"
     cat > "$test_home/.ssh/config" <<'SSHEOF'
 Host github.com
     IdentityFile ~/.ssh/id_ed25519
@@ -92,7 +109,8 @@ HISTEOF
 }
 DOCKEREOF
 
-    # Kubeconfig
+    # Kubeconfig (works even without kubectl installed —
+    # the script just checks if the file exists and reads current-context)
     mkdir -p "$test_home/.kube"
     cat > "$test_home/.kube/config" <<'K8SEOF'
 apiVersion: v1
@@ -120,7 +138,6 @@ K8SEOF
     echo "API_KEY=abc" > "$test_home/Code/project-b/.env.local"
 
     # Git config (for SSH module email detection)
-    mkdir -p "$test_home/.config/git"
     cat > "$test_home/.gitconfig" <<'GITEOF'
 [user]
     email = test@example.com
@@ -130,15 +147,42 @@ GITEOF
     echo "$test_home"
 }
 
-# --- Run fix.sh in isolated env ---
+# --- Run fix.sh in isolated env, always capture output, never fail the harness ---
 run_fix() {
     local test_home="$1"; shift
     local output
+    output="$(HOME="$test_home" bash "$FIX_SCRIPT" "$@" 2>&1)" || true
     if $VERBOSE; then
-        HOME="$test_home" bash "$FIX_SCRIPT" "$@" 2>&1 | tee /dev/stderr
-    else
-        HOME="$test_home" bash "$FIX_SCRIPT" "$@" 2>&1
+        echo "$output" >&2
     fi
+    echo "$output"
+}
+
+# --- Create a stub script that pretends to be a command ---
+# Usage: create_stub "$dir" "kubectl" to make a kubectl that reads from stdin config
+create_path_stub() {
+    local dir="$1" name="$2"
+    cat > "$dir/$name" <<STUBEOF
+#!/usr/bin/env bash
+# Stub for $name — enough to not crash the script
+case "\$1" in
+    config)
+        if [[ "\${2:-}" == "current-context" ]]; then
+            echo "test-cluster"
+        fi
+        ;;
+    auth)
+        echo "not logged in"
+        ;;
+    get)
+        echo "No resources found"
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+STUBEOF
+    chmod +x "$dir/$name"
 }
 
 # =============================================================================
@@ -154,7 +198,7 @@ echo ""
 
 # --- Test 1: Syntax check ---
 echo "--- Syntax ---"
-if bash -n "$FIX_SCRIPT" 2>&1; then
+if bash -n "$FIX_SCRIPT" 2>/dev/null; then
     pass "bash -n syntax check"
 else
     fail "bash -n syntax check"
@@ -163,7 +207,7 @@ fi
 # --- Test 2: --help ---
 echo ""
 echo "--- Help ---"
-output="$(bash "$FIX_SCRIPT" --help 2>&1)"
+output="$(bash "$FIX_SCRIPT" --help 2>&1)" || true
 if echo "$output" | grep -q "Usage:"; then
     pass "--help shows usage"
 else
@@ -179,14 +223,14 @@ fi
 # --- Test 3: --lang ---
 echo ""
 echo "--- Language ---"
-output="$(bash "$FIX_SCRIPT" --lang en --help 2>&1)"
+output="$(bash "$FIX_SCRIPT" --lang en --help 2>&1)" || true
 if echo "$output" | grep -q "Apifox Supply Chain Incident Response Tool"; then
     pass "--lang en shows English"
 else
     fail "--lang en shows English"
 fi
 
-output="$(bash "$FIX_SCRIPT" --lang cn --help 2>&1)"
+output="$(bash "$FIX_SCRIPT" --lang cn --help 2>&1)" || true
 if echo "$output" | grep -q "供应链攻击"; then
     pass "--lang cn shows Chinese"
 else
@@ -196,21 +240,21 @@ fi
 # --- Test 4: Argument validation ---
 echo ""
 echo "--- Argument Validation ---"
-output="$(bash "$FIX_SCRIPT" --lang 2>&1 || true)"
+output="$(bash "$FIX_SCRIPT" --lang 2>&1)" || true
 if echo "$output" | grep -q "requires a value"; then
     pass "--lang without value reports error"
 else
     fail "--lang without value reports error"
 fi
 
-output="$(bash "$FIX_SCRIPT" --modules 99 2>&1 || true)"
+output="$(bash "$FIX_SCRIPT" --modules 99 2>&1)" || true
 if echo "$output" | grep -q "invalid module number"; then
     pass "--modules 99 reports invalid"
 else
     fail "--modules 99 reports invalid"
 fi
 
-output="$(bash "$FIX_SCRIPT" --bogus 2>&1 || true)"
+output="$(bash "$FIX_SCRIPT" --bogus 2>&1)" || true
 if echo "$output" | grep -q "Unknown option"; then
     pass "unknown option reports error"
 else
@@ -222,7 +266,14 @@ echo ""
 echo "--- Dry-Run Full Scan ---"
 TEST_HOME="$(setup_test_home)"
 
-output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en 2>&1)"
+# Create stubs for tools that may not be installed
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+if ! has_cmd kubectl; then
+    create_path_stub "$STUB_DIR" "kubectl"
+fi
+
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --lang en)"
 
 # System scan detections
 if echo "$output" | grep -q "SSH Keys:.*2 keys"; then
@@ -249,10 +300,15 @@ else
     fail "scan detects .env files"
 fi
 
-if echo "$output" | grep -q "test-cluster"; then
-    pass "scan detects K8s context"
+# K8s detection: only assert if kubectl is available (real or stub)
+if has_cmd kubectl || [[ -f "$STUB_DIR/kubectl" ]]; then
+    if echo "$output" | grep -q "test-cluster"; then
+        pass "scan detects K8s context"
+    else
+        fail "scan detects K8s context"
+    fi
 else
-    fail "scan detects K8s context"
+    skip "K8s context detection (kubectl not available)"
 fi
 
 # Dry-run markers
@@ -277,10 +333,10 @@ else
     fail "dry-run modified .zsh_history (expected 6, got $zsh_lines)"
 fi
 
-if [[ ! -d "$TEST_HOME/.ssh/compromised_backup"* ]] 2>/dev/null; then
-    pass "dry-run did not create SSH backup dir"
-else
+if ls -d "$TEST_HOME"/.ssh/compromised_backup* &>/dev/null; then
     fail "dry-run created SSH backup dir"
+else
+    pass "dry-run did not create SSH backup dir"
 fi
 
 rm -rf "$TEST_HOME"
@@ -289,8 +345,11 @@ rm -rf "$TEST_HOME"
 echo ""
 echo "--- Module Selection ---"
 TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
 
-output="$(run_fix "$TEST_HOME" --dry-run --yes --modules 3 --lang en 2>&1)"
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --modules 3 --lang en)"
 
 # Only module 3 execution section should appear (prefixed with [i] [N])
 # Scan report also lists modules but those lines are indented with spaces
@@ -330,9 +389,12 @@ rm -rf "$TEST_HOME"
 echo ""
 echo "--- Module Selection Edge Cases ---"
 TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
 
-output="$(run_fix "$TEST_HOME" --dry-run --yes --modules '2, 3' --lang en 2>&1)"
-mod_sections="$(echo "$output" | grep -c '^\[i\] \[[0-9]\]' || true)"
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --modules '2, 3' --lang en)"
+mod_sections="$(echo "$output" | grep -c '^\[i\] \[[0-9]\]')" || true
 if [[ "$mod_sections" == "2" ]]; then
     pass "--modules '2, 3' runs exactly 2 modules"
 else
@@ -346,13 +408,12 @@ echo ""
 echo "--- Empty Environment ---"
 EMPTY_HOME="$(mktemp -d)"
 
-output="$(run_fix "$EMPTY_HOME" --dry-run --yes --lang en 2>&1)"
-exit_code=$?
-
-if [[ $exit_code -eq 0 ]]; then
-    pass "empty HOME does not crash (exit 0)"
+output="$(run_fix "$EMPTY_HOME" --dry-run --yes --lang en)"
+# run_fix always succeeds (|| true), check output for crash signs
+if echo "$output" | grep -q "Script execution complete"; then
+    pass "empty HOME completes successfully"
 else
-    fail "empty HOME crashed (exit $exit_code)"
+    fail "empty HOME did not complete"
 fi
 
 if echo "$output" | grep -q "SSH Keys:.*Not found"; then
@@ -367,6 +428,13 @@ else
     fail "empty HOME: history detection"
 fi
 
+# Verify no unbound variable errors leaked into output
+if echo "$output" | grep -qi "unbound variable"; then
+    fail "empty HOME: unbound variable error in output"
+else
+    pass "empty HOME: no unbound variable errors"
+fi
+
 rm -rf "$EMPTY_HOME"
 
 # --- Test 9: --no-color ---
@@ -374,9 +442,9 @@ echo ""
 echo "--- No Color ---"
 TEST_HOME="$(setup_test_home)"
 
-output="$(run_fix "$TEST_HOME" --dry-run --yes --no-color --lang en 2>&1)"
-# Check for ANSI escape sequences
-if echo "$output" | grep -qP '\033\[' 2>/dev/null || echo "$output" | grep -q $'\033\[' 2>/dev/null; then
+output="$(run_fix "$TEST_HOME" --dry-run --yes --no-color --lang en)"
+# Check for ANSI escape sequences (using $'\033' for portability)
+if echo "$output" | grep -q $'\033\['; then
     fail "--no-color still contains ANSI codes"
 else
     pass "--no-color strips ANSI codes"
@@ -393,7 +461,7 @@ TEST_HOME="$(mktemp -d)"
 mkdir -p "$TEST_HOME/.docker"
 echo '{"auths":{"ghcr.io":{"auth":"x"},"docker.io":{"auth":"y"}},"credsStore":"osxkeychain"}' > "$TEST_HOME/.docker/config.json"
 
-output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en 2>&1)"
+output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en)"
 if echo "$output" | grep -q "2 registries"; then
     pass "compact JSON: detects 2 registries"
 else
@@ -401,20 +469,42 @@ else
 fi
 rm -rf "$TEST_HOME"
 
-# --- Test 11: Platform-specific (macOS only) ---
+# --- Test 11: Platform-specific behavior ---
 echo ""
 echo "--- Platform-Specific ---"
+
 if [[ "$OS_TYPE" == "macos" ]]; then
+    # On macOS: Keychain module should run
     TEST_HOME="$(setup_test_home)"
-    output="$(run_fix "$TEST_HOME" --dry-run --yes --modules 7 --lang en 2>&1)"
+    output="$(run_fix "$TEST_HOME" --dry-run --yes --modules 7 --lang en)"
     if echo "$output" | grep -q "Keychain"; then
         pass "macOS: Keychain module runs"
     else
         fail "macOS: Keychain module"
     fi
     rm -rf "$TEST_HOME"
+
+    # On macOS: verify scan shows Keychain as applicable
+    TEST_HOME="$(setup_test_home)"
+    output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en)"
+    if echo "$output" | grep -q "Check macOS Keychain.*applicable"; then
+        pass "macOS: Keychain marked applicable in scan"
+    else
+        fail "macOS: Keychain applicable status"
+    fi
+    rm -rf "$TEST_HOME"
 else
     skip "macOS Keychain test (running on $OS_TYPE)"
+
+    # On Linux: Keychain should be skipped
+    TEST_HOME="$(setup_test_home)"
+    output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en)"
+    if echo "$output" | grep -q "Check macOS Keychain.*skip"; then
+        pass "Linux: Keychain marked skip in scan"
+    else
+        fail "Linux: Keychain skip status"
+    fi
+    rm -rf "$TEST_HOME"
 fi
 
 # --- Test 12: Chinese dry-run ---
@@ -422,7 +512,7 @@ echo ""
 echo "--- Chinese Language ---"
 TEST_HOME="$(setup_test_home)"
 
-output="$(run_fix "$TEST_HOME" --dry-run --yes --lang cn 2>&1)"
+output="$(run_fix "$TEST_HOME" --dry-run --yes --lang cn)"
 if echo "$output" | grep -q "系统扫描"; then
     pass "--lang cn: scan title in Chinese"
 else
@@ -442,9 +532,9 @@ echo ""
 echo "--- Log File ---"
 TEST_HOME="$(setup_test_home)"
 
-run_fix "$TEST_HOME" --dry-run --yes --lang en >/dev/null 2>&1
-log_file="$(ls "$TEST_HOME"/apifox-incident-fix-*.log 2>/dev/null | head -1)"
-if [[ -n "$log_file" && -f "$log_file" ]]; then
+run_fix "$TEST_HOME" --dry-run --yes --lang en >/dev/null
+log_file="$(ls "$TEST_HOME"/apifox-incident-fix-*.log 2>/dev/null | head -1)" || true
+if [[ -n "${log_file:-}" && -f "$log_file" ]]; then
     pass "log file created"
     if [[ -s "$log_file" ]]; then
         pass "log file is non-empty"
