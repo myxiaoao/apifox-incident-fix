@@ -606,6 +606,53 @@ else
 fi
 rm -rf "$TEST_HOME"
 
+# Abort (default N): verify files remain untouched
+TEST_HOME="$(setup_test_home)"
+zsh_before="$(cat "$TEST_HOME/.zsh_history")"
+ssh_keys_before="$(ls "$TEST_HOME/.ssh/")"
+# \n → module selection (Y=all), \n → confirmation (default N=abort)
+printf '\n\n' | HOME="$TEST_HOME" bash "$FIX_SCRIPT" --modules 3 --lang en >/dev/null 2>&1 || true
+zsh_after="$(cat "$TEST_HOME/.zsh_history")"
+ssh_keys_after="$(ls "$TEST_HOME/.ssh/")"
+if [[ "$zsh_before" == "$zsh_after" ]]; then
+    pass "abort: .zsh_history unchanged"
+else
+    fail "abort: .zsh_history was modified"
+fi
+if [[ "$ssh_keys_before" == "$ssh_keys_after" ]]; then
+    pass "abort: SSH keys unchanged"
+else
+    fail "abort: SSH keys were modified"
+fi
+rm -rf "$TEST_HOME"
+
+# Confirm with 'y': verify history module actually cleans sensitive lines
+TEST_HOME="$(setup_test_home)"
+zsh_lines_before="$(wc -l < "$TEST_HOME/.zsh_history" | tr -d ' ')"
+# --modules skips module selection prompt, so stdin is:
+# y\n → second confirmation, \n → module internal pause
+printf 'y\n\n' | HOME="$TEST_HOME" bash "$FIX_SCRIPT" --modules 3 --lang en >/dev/null 2>&1 || true
+zsh_lines_after="$(wc -l < "$TEST_HOME/.zsh_history" | tr -d ' ')"
+if [[ "$zsh_lines_after" -lt "$zsh_lines_before" ]]; then
+    pass "confirm y: history module cleaned lines ($zsh_lines_before → $zsh_lines_after)"
+else
+    fail "confirm y: history should have fewer lines (before=$zsh_lines_before, after=$zsh_lines_after)"
+fi
+# Backup should exist
+if [[ -f "$TEST_HOME/.zsh_history.backup" ]]; then
+    pass "confirm y: history backup created"
+else
+    fail "confirm y: history backup not found"
+fi
+# Backup should have original content
+backup_lines="$(wc -l < "$TEST_HOME/.zsh_history.backup" | tr -d ' ')"
+if [[ "$backup_lines" == "$zsh_lines_before" ]]; then
+    pass "confirm y: backup has original line count"
+else
+    fail "confirm y: backup line count mismatch (expected $zsh_lines_before, got $backup_lines)"
+fi
+rm -rf "$TEST_HOME"
+
 # --- Test 12: Chinese dry-run ---
 echo ""
 echo "--- Chinese Language ---"
