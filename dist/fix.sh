@@ -532,14 +532,16 @@ HELPEOF
 
 
 # --- Platform Detection ---
-OS_TYPE=""
-case "$(uname -s)" in
-    Darwin) OS_TYPE="macos" ;;
-    Linux)  OS_TYPE="linux" ;;
-    *)      OS_TYPE="unknown" ;;
-esac
+# OS_TYPE can be overridden via environment variable (useful for testing)
+if [[ -z "${OS_TYPE:-}" ]]; then
+    case "$(uname -s)" in
+        Darwin) OS_TYPE="macos" ;;
+        Linux)  OS_TYPE="linux" ;;
+        *)      OS_TYPE="unknown" ;;
+    esac
+fi
 
-OS_VERSION="$(uname -sr)"
+OS_VERSION="${OS_VERSION:-$(uname -sr)}"
 
 # --- Tool Detection ---
 HAS_GH=false

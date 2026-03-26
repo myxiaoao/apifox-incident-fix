@@ -469,43 +469,94 @@ else
 fi
 rm -rf "$TEST_HOME"
 
-# --- Test 11: Platform-specific behavior ---
+# --- Test 11: Platform-specific behavior (native) ---
 echo ""
-echo "--- Platform-Specific ---"
+echo "--- Platform-Specific (native: $OS_TYPE) ---"
 
 if [[ "$OS_TYPE" == "macos" ]]; then
-    # On macOS: Keychain module should run
     TEST_HOME="$(setup_test_home)"
     output="$(run_fix "$TEST_HOME" --dry-run --yes --modules 7 --lang en)"
     if echo "$output" | grep -q "Keychain"; then
-        pass "macOS: Keychain module runs"
+        pass "native macOS: Keychain module runs"
     else
-        fail "macOS: Keychain module"
+        fail "native macOS: Keychain module"
     fi
     rm -rf "$TEST_HOME"
 
-    # On macOS: verify scan shows Keychain as applicable
     TEST_HOME="$(setup_test_home)"
     output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en)"
     if echo "$output" | grep -q "Check macOS Keychain.*applicable"; then
-        pass "macOS: Keychain marked applicable in scan"
+        pass "native macOS: Keychain marked applicable"
     else
-        fail "macOS: Keychain applicable status"
+        fail "native macOS: Keychain applicable status"
     fi
     rm -rf "$TEST_HOME"
 else
-    skip "macOS Keychain test (running on $OS_TYPE)"
-
-    # On Linux: Keychain should be skipped
     TEST_HOME="$(setup_test_home)"
     output="$(run_fix "$TEST_HOME" --dry-run --yes --lang en)"
     if echo "$output" | grep -q "Check macOS Keychain.*skip"; then
-        pass "Linux: Keychain marked skip in scan"
+        pass "native Linux: Keychain marked skip"
     else
-        fail "Linux: Keychain skip status"
+        fail "native Linux: Keychain skip status"
     fi
     rm -rf "$TEST_HOME"
 fi
+
+# --- Test 11b: Cross-platform simulation via OS_TYPE injection ---
+# OS_TYPE is injectable — test the OTHER platform's code path
+echo ""
+echo "--- Platform-Specific (simulated) ---"
+
+# run_fix_as: run fix.sh with OS_TYPE forced to a given platform
+run_fix_as() {
+    local platform="$1" test_home="$2"; shift 2
+    OS_TYPE="$platform" OS_VERSION="Simulated-$platform" \
+        HOME="$test_home" bash "$FIX_SCRIPT" "$@" 2>&1 || true
+}
+
+# Simulate Linux (even on macOS)
+TEST_HOME="$(setup_test_home)"
+output="$(run_fix_as linux "$TEST_HOME" --dry-run --yes --lang en)"
+
+if echo "$output" | grep -q "Check macOS Keychain.*skip"; then
+    pass "simulated Linux: Keychain marked skip"
+else
+    fail "simulated Linux: Keychain skip status"
+fi
+
+if echo "$output" | grep -q "Simulated-linux"; then
+    pass "simulated Linux: platform shows as Linux"
+else
+    fail "simulated Linux: platform detection"
+fi
+
+# Module 7 should not produce a section when simulating Linux
+output_mod7="$(run_fix_as linux "$TEST_HOME" --dry-run --yes --modules 7 --lang en)"
+if echo "$output_mod7" | grep -qE '^\[i\] \[7\]'; then
+    fail "simulated Linux: Keychain module should not run"
+else
+    pass "simulated Linux: Keychain module correctly skipped"
+fi
+
+rm -rf "$TEST_HOME"
+
+# Simulate macOS (even on Linux)
+TEST_HOME="$(setup_test_home)"
+output="$(run_fix_as macos "$TEST_HOME" --dry-run --yes --lang en)"
+
+if echo "$output" | grep -q "Check macOS Keychain.*applicable"; then
+    pass "simulated macOS: Keychain marked applicable"
+else
+    fail "simulated macOS: Keychain applicable status"
+fi
+
+if echo "$output" | grep -q "Simulated-macos"; then
+    pass "simulated macOS: platform shows as macOS"
+else
+    fail "simulated macOS: platform detection"
+fi
+
+rm -rf "$TEST_HOME"
 
 # --- Test 12: Chinese dry-run ---
 echo ""
