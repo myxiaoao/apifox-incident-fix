@@ -7,6 +7,18 @@ RISK_START="2026-03-04"
 RISK_END="2026-03-22"
 FIX_VERSION="2.8.19"
 C2_DOMAIN="apifox.it.com"
+# All known malicious domains from the incident
+C2_DOMAINS=(
+    "apifox.it.com"
+    "cdn.openroute.dev"
+    "upgrade.feishu.it.com"
+    "system.toshinkyo.or.jp"
+    "panel.feishu.it.com"
+    "d.feishu.it.com"
+    "api.feishu.it.com"
+    "ns.feishu.it.com"
+    "ns.openroute.dev"
+)
 ANNOUNCEMENT_URL="https://mp.weixin.qq.com/s/GpACQdnhVNsMn51cm4hZig"
 SECURITY_EMAIL="security@apifox.com"
 
@@ -160,6 +172,12 @@ MSG_SCAN_HOSTS_BLOCKED_CN="已屏蔽"
 MSG_SCAN_HOSTS_NOT_BLOCKED_EN="NOT blocked"
 MSG_SCAN_HOSTS_NOT_BLOCKED_CN="未屏蔽"
 
+MSG_SCAN_HOSTS_ALL_BLOCKED_EN="domains blocked"
+MSG_SCAN_HOSTS_ALL_BLOCKED_CN="个域名已屏蔽"
+
+MSG_SCAN_HOSTS_PARTIAL_EN="domains blocked (incomplete)"
+MSG_SCAN_HOSTS_PARTIAL_CN="个域名已屏蔽（不完整）"
+
 MSG_SCAN_CREDS_TITLE_EN="Credentials found"
 MSG_SCAN_CREDS_TITLE_CN="发现的凭证"
 
@@ -186,6 +204,15 @@ MSG_SCAN_HISTORY_CLEAN_CN="未发现敏感 token"
 
 MSG_SCAN_ENV_EN=".env files"
 MSG_SCAN_ENV_CN=".env 文件"
+
+MSG_SCAN_NPMRC_TOKEN_EN="auth token found"
+MSG_SCAN_NPMRC_TOKEN_CN="发现认证 token"
+
+MSG_SCAN_NPMRC_NO_TOKEN_EN="no auth token"
+MSG_SCAN_NPMRC_NO_TOKEN_CN="无认证 token"
+
+MSG_SCAN_SVN_FOUND_EN="found (credentials may be cached)"
+MSG_SCAN_SVN_FOUND_CN="存在（可能缓存了凭证）"
 
 MSG_SCAN_MODULES_TITLE_EN="Modules to run"
 MSG_SCAN_MODULES_TITLE_CN="将执行的模块"
@@ -221,15 +248,18 @@ MSG_MOD6_NAME_CN="轮换 Docker 凭证"
 MSG_MOD7_NAME_EN="Check macOS Keychain"
 MSG_MOD7_NAME_CN="检查 macOS 钥匙串"
 
-MSG_MOD8_NAME_EN="Scan .env Files"
-MSG_MOD8_NAME_CN="扫描 .env 文件"
+MSG_MOD8_NAME_EN="Scan Sensitive Files"
+MSG_MOD8_NAME_CN="扫描敏感文件"
 
 MSG_MOD9_NAME_EN="Audit Activity"
 MSG_MOD9_NAME_CN="审计异常活动"
 
+MSG_MOD10_NAME_EN="Rotate npm Token"
+MSG_MOD10_NAME_CN="轮换 npm Token"
+
 # -- Module 00: Forensics --
-MSG_FORENSICS_CHECKING_EN="Checking Apifox LevelDB for malicious markers..."
-MSG_FORENSICS_CHECKING_CN="检查 Apifox LevelDB 是否存在恶意标记..."
+MSG_FORENSICS_CHECKING_EN="Checking Apifox LevelDB for malicious markers (_rl_headers, _rl_mc, common.accessToken, af_uuid, etc.)..."
+MSG_FORENSICS_CHECKING_CN="检查 Apifox LevelDB 是否存在恶意标记（_rl_headers、_rl_mc、common.accessToken、af_uuid 等）..."
 
 MSG_FORENSICS_FOUND_EN="Malicious markers found! Matched files:"
 MSG_FORENSICS_FOUND_CN="发现恶意载荷痕迹！匹配文件："
@@ -240,14 +270,17 @@ MSG_FORENSICS_CLEAN_CN="未在 LevelDB 中发现已知恶意标记（但不代�
 MSG_FORENSICS_NO_DIR_EN="Apifox LevelDB directory not found"
 MSG_FORENSICS_NO_DIR_CN="未找到 Apifox LevelDB 目录"
 
-MSG_FORENSICS_HOSTS_PROMPT_EN="Add 127.0.0.1 apifox.it.com to /etc/hosts? (requires sudo) [Y/n]"
-MSG_FORENSICS_HOSTS_PROMPT_CN="添加 127.0.0.1 apifox.it.com 到 /etc/hosts？（需要 sudo）[Y/n]"
+MSG_FORENSICS_HOSTS_PROMPT_EN="Add all malicious domains to /etc/hosts? (requires sudo) [Y/n]"
+MSG_FORENSICS_HOSTS_PROMPT_CN="添加所有恶意域名到 /etc/hosts？（需要 sudo）[Y/n]"
 
-MSG_FORENSICS_HOSTS_ADDED_EN="Hosts entry added"
-MSG_FORENSICS_HOSTS_ADDED_CN="Hosts 条目已添加"
+MSG_FORENSICS_HOSTS_ADDED_EN="Hosts entries added for malicious domains"
+MSG_FORENSICS_HOSTS_ADDED_CN="已添加恶意域名的 Hosts 条目"
 
-MSG_FORENSICS_HOSTS_EXISTS_EN="apifox.it.com is already blocked in /etc/hosts"
-MSG_FORENSICS_HOSTS_EXISTS_CN="apifox.it.com 已在 /etc/hosts 中被屏蔽"
+MSG_FORENSICS_HOSTS_EXISTS_EN="All malicious domains are already blocked in /etc/hosts"
+MSG_FORENSICS_HOSTS_EXISTS_CN="所有恶意域名已在 /etc/hosts 中被屏蔽"
+
+MSG_FORENSICS_HOSTS_PARTIAL_EN="Some malicious domains are not yet blocked, adding remaining:"
+MSG_FORENSICS_HOSTS_PARTIAL_CN="部分恶意域名尚未屏蔽，正在添加剩余域名："
 
 MSG_FORENSICS_VERSION_WARN_EN="Apifox version is below ${FIX_VERSION}. Please upgrade before continuing."
 MSG_FORENSICS_VERSION_WARN_CN="Apifox 版本低于 ${FIX_VERSION}，请先升级再继续。"
@@ -377,14 +410,17 @@ MSG_KEYCHAIN_LINUX_EN="Keychain check is macOS-only. Please manually check your 
 MSG_KEYCHAIN_LINUX_CN="钥匙串检查仅适用于 macOS。请手动检查系统密钥管理器（如 GNOME Keyring、KDE Wallet）"
 
 # -- Module 08: Env Scan --
-MSG_ENV_SCANNING_EN="Scanning for .env / .key / .pem files..."
-MSG_ENV_SCANNING_CN="扫描 .env / .key / .pem 文件..."
+MSG_ENV_SCANNING_EN="Scanning for sensitive files (.env, .key, .pem, credentials)..."
+MSG_ENV_SCANNING_CN="扫描敏感文件（.env、.key、.pem、凭证文件）..."
 
-MSG_ENV_FOUND_EN="Sensitive files found (check credentials inside):"
-MSG_ENV_FOUND_CN="发现以下敏感文件，请逐一检查其中的凭证是否需要轮换："
+MSG_ENV_FOUND_EN=".env / .key / .pem files found (check credentials inside):"
+MSG_ENV_FOUND_CN="发现 .env / .key / .pem 文件，请逐一检查其中的凭证是否需要轮换："
 
-MSG_ENV_NONE_EN="No sensitive files found"
-MSG_ENV_NONE_CN="未找到敏感文件"
+MSG_ENV_NONE_EN="No .env / .key / .pem files found"
+MSG_ENV_NONE_CN="未找到 .env / .key / .pem 文件"
+
+MSG_ENV_EXTRA_CHECK_EN="Checking additional files that may have been exfiltrated:"
+MSG_ENV_EXTRA_CHECK_CN="检查可能已被窃取的其他敏感文件："
 
 # -- Module 09: Audit --
 MSG_AUDIT_GITHUB_EN="Check GitHub security log: https://github.com/settings/security-log"
@@ -395,6 +431,28 @@ MSG_AUDIT_GIT_CN="检查 git 仓库自以下日期起的异常提交："
 
 MSG_AUDIT_K8S_EN="Check Kubernetes events for anomalies"
 MSG_AUDIT_K8S_CN="检查 Kubernetes 事件是否有异常"
+
+MSG_AUDIT_SSH_LOGIN_EN="Check server login logs for anomalous SSH logins (e.g., /var/log/auth.log, last, lastlog)"
+MSG_AUDIT_SSH_LOGIN_CN="检查服务器登录日志，排查异常 SSH 登录（如 /var/log/auth.log、last、lastlog）"
+
+MSG_AUDIT_NETWORK_EN="Check network/firewall logs for connections to the malicious domains below"
+MSG_AUDIT_NETWORK_CN="检查网络/防火墙日志，排查是否有到以下恶意域名的连接记录"
+
+MSG_AUDIT_C2_DOMAINS_EN="Known malicious domains (block via firewall/DNS):"
+MSG_AUDIT_C2_DOMAINS_CN="已知恶意域名（建议通过防火墙/DNS 层面阻断）："
+
+# -- Module 10: npm --
+MSG_NPM_FOUND_EN="Found npm auth tokens in ~/.npmrc:"
+MSG_NPM_FOUND_CN="在 ~/.npmrc 中发现 npm 认证 token："
+
+MSG_NPM_BACKUP_EN="~/.npmrc backed up to"
+MSG_NPM_BACKUP_CN="~/.npmrc 已备份到"
+
+MSG_NPM_MANUAL_EN="Revoke the above npm tokens at https://www.npmjs.com/settings/tokens and re-login with: npm login"
+MSG_NPM_MANUAL_CN="请在 https://www.npmjs.com/settings/tokens 撤销上述 token，然后执行 npm login 重新登录"
+
+MSG_NPM_NONE_EN="No npm auth tokens found in ~/.npmrc"
+MSG_NPM_NONE_CN="~/.npmrc 中未发现认证 token"
 
 # -- Confirmation --
 MSG_CONFIRM_WARN_EN="WARNING: This will modify your system (rotate keys, clean history, etc.)"
@@ -485,15 +543,15 @@ validate_selected_modules() {
     IFS=',' read -ra nums <<< "$SELECTED_MODULES"
     for n in "${nums[@]}"; do
         [[ -z "$n" ]] && continue
-        if ! [[ "$n" =~ ^[0-9]$ ]]; then
-            echo "Error: invalid module number '$n' (valid: 0-9)" >&2
+        if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ "$n" -gt 10 ]]; then
+            echo "Error: invalid module number '$n' (valid: 0-10)" >&2
             echo "Run with --help for usage information" >&2
             exit 1
         fi
         any_valid=true
     done
     if ! $any_valid; then
-        echo "Error: --modules requires at least one valid module number (0-9)" >&2
+        echo "Error: --modules requires at least one valid module number (0-10)" >&2
         exit 1
     fi
 }
@@ -828,9 +886,32 @@ is_c2_blocked() {
     grep -qE "^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0|::1)[[:space:]]+([^#]*[[:space:]]+)*${C2_DOMAIN}([[:space:]]|$)" /etc/hosts 2>/dev/null
 }
 
+# Check how many C2 domains are blocked
+count_blocked_c2_domains() {
+    local blocked=0
+    for domain in "${C2_DOMAINS[@]}"; do
+        local escaped_domain
+        escaped_domain="$(echo "$domain" | sed 's/\./\\./g')"
+        if grep -qE "^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0|::1)[[:space:]]+([^#]*[[:space:]]+)*${escaped_domain}([[:space:]]|$)" /etc/hosts 2>/dev/null; then
+            ((blocked++))
+        fi
+    done
+    echo "$blocked"
+}
+
+get_unblocked_c2_domains() {
+    for domain in "${C2_DOMAINS[@]}"; do
+        local escaped_domain
+        escaped_domain="$(echo "$domain" | sed 's/\./\\./g')"
+        if ! grep -qE "^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0|::1)[[:space:]]+([^#]*[[:space:]]+)*${escaped_domain}([[:space:]]|$)" /etc/hosts 2>/dev/null; then
+            echo "$domain"
+        fi
+    done
+}
+
 # --- Module Applicability Array ---
 declare -a MODULE_APPLICABLE
-for i in {0..9}; do
+for i in {0..10}; do
     MODULE_APPLICABLE[$i]=true
 done
 
@@ -863,7 +944,7 @@ run_system_scan() {
     local leveldb_dir="${data_dir:+${data_dir}/Local Storage/leveldb}"
     LEVELDB_MATCHES=""
     if [[ -n "$leveldb_dir" && -d "$leveldb_dir" ]]; then
-        LEVELDB_MATCHES="$(grep -arlE "rl_mc|rl_headers" "$leveldb_dir" 2>/dev/null || true)"
+        LEVELDB_MATCHES="$(grep -arlE "_rl_mc|_rl_headers|common\.accessToken|af_uuid|af_os|af_user|af_name|af_apifox_user|af_apifox_name" "$leveldb_dir" 2>/dev/null || true)"
         if [[ -n "$LEVELDB_MATCHES" ]]; then
             printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_LEVELDB):" "$(msg SCAN_MALICIOUS)"
         else
@@ -884,11 +965,16 @@ run_system_scan() {
         fi
     fi
 
-    # Hosts block
-    if is_c2_blocked; then
-        printf "  %-20s ${GREEN}%s${NC}\n" "$(msg SCAN_HOSTS):" "${C2_DOMAIN} $(msg SCAN_HOSTS_BLOCKED)"
+    # Hosts block — check all C2 domains
+    local blocked_count
+    blocked_count="$(count_blocked_c2_domains)"
+    local total_c2="${#C2_DOMAINS[@]}"
+    if [[ "$blocked_count" -eq "$total_c2" ]]; then
+        printf "  %-20s ${GREEN}%s${NC}\n" "$(msg SCAN_HOSTS):" "${blocked_count}/${total_c2} $(msg SCAN_HOSTS_ALL_BLOCKED)"
+    elif [[ "$blocked_count" -gt 0 ]]; then
+        printf "  %-20s ${YELLOW}%s${NC}\n" "$(msg SCAN_HOSTS):" "${blocked_count}/${total_c2} $(msg SCAN_HOSTS_PARTIAL)"
     else
-        printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_HOSTS):" "${C2_DOMAIN} $(msg SCAN_HOSTS_NOT_BLOCKED)"
+        printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_HOSTS):" "$(msg SCAN_HOSTS_NOT_BLOCKED)"
     fi
 
     echo ""
@@ -960,14 +1046,42 @@ run_system_scan() {
         MODULE_APPLICABLE[3]=false
     fi
 
+    # npmrc — match _authToken= lines, excluding comments (# or ;)
+    if [[ -f "$HOME/.npmrc" ]]; then
+        if grep -vE '^[[:space:]]*[#;]' "$HOME/.npmrc" 2>/dev/null | grep -qE '_authToken=' 2>/dev/null; then
+            printf "    %-18s ${YELLOW}%s${NC}\n" "npm:" "$(msg SCAN_NPMRC_TOKEN)"
+            MODULE_APPLICABLE[10]=true
+        else
+            printf "    %-18s %s\n" "npm:" "$(msg SCAN_NPMRC_NO_TOKEN)"
+            MODULE_APPLICABLE[10]=false
+        fi
+    else
+        printf "    %-18s %s\n" "npm:" "$(msg SCAN_NOT_FOUND)"
+        MODULE_APPLICABLE[10]=false
+    fi
+
+    # Subversion credentials
+    if [[ -d "$HOME/.subversion" ]]; then
+        printf "    %-18s %s\n" "Subversion:" "~/.subversion/ $(msg SCAN_SVN_FOUND)"
+    fi
+
     # .env files
     ENV_FILES="$(scan_env_files)"
     local env_count=0
     if [[ -n "$ENV_FILES" ]]; then
         env_count="$(echo "$ENV_FILES" | wc -l | tr -d ' ')"
     fi
+    # Extra sensitive files that may have been exfiltrated
+    HAS_EXTRA_SENSITIVE=false
+    for ef in "$HOME/.git-credentials" "$HOME/.npmrc" "$HOME/.zshrc"; do
+        [[ -f "$ef" ]] && HAS_EXTRA_SENSITIVE=true && break
+    done
+    [[ -d "$HOME/.subversion" ]] && HAS_EXTRA_SENSITIVE=true
     if [[ "$env_count" -gt 0 ]]; then
         printf "    %-18s %d found\n" "$(msg SCAN_ENV):" "$env_count"
+        MODULE_APPLICABLE[8]=true
+    elif $HAS_EXTRA_SENSITIVE; then
+        printf "    %-18s %s\n" "$(msg SCAN_ENV):" "$(msg SCAN_NOT_FOUND)"
         MODULE_APPLICABLE[8]=true
     else
         printf "    %-18s %s\n" "$(msg SCAN_ENV):" "$(msg SCAN_NOT_FOUND)"
@@ -988,7 +1102,7 @@ run_system_scan() {
     # Module summary
     echo ""
     printf "  ${BOLD}%s:${NC}\n" "$(msg SCAN_MODULES_TITLE)"
-    local mod_names=("MOD0_NAME" "MOD1_NAME" "MOD2_NAME" "MOD3_NAME" "MOD4_NAME" "MOD5_NAME" "MOD6_NAME" "MOD7_NAME" "MOD8_NAME" "MOD9_NAME")
+    local mod_names=("MOD0_NAME" "MOD1_NAME" "MOD2_NAME" "MOD3_NAME" "MOD4_NAME" "MOD5_NAME" "MOD6_NAME" "MOD7_NAME" "MOD8_NAME" "MOD9_NAME" "MOD10_NAME")
     for i in "${!mod_names[@]}"; do
         local status_icon status_text
         if ${MODULE_APPLICABLE[$i]}; then
@@ -1059,22 +1173,36 @@ run_module_00() {
         fi
     fi
 
-    # --- Hosts Block ---
-    if is_c2_blocked; then
+    # --- Hosts Block (all malicious domains) ---
+    local unblocked_domains
+    unblocked_domains="$(get_unblocked_c2_domains)"
+    if [[ -z "$unblocked_domains" ]]; then
         log "$(msg FORENSICS_HOSTS_EXISTS)"
     else
+        local unblocked_count
+        unblocked_count="$(echo "$unblocked_domains" | wc -l | tr -d ' ')"
         if [[ "$DRY_RUN" == true ]]; then
-            info "$(msg DRY_RUN_PREFIX): add 127.0.0.1 ${C2_DOMAIN} to /etc/hosts"
+            info "$(msg DRY_RUN_PREFIX): add ${unblocked_count} malicious domains to /etc/hosts"
+            echo "$unblocked_domains" | while IFS= read -r d; do
+                info "  127.0.0.1 $d"
+            done
         else
             if [[ "$YES_MODE" == true ]]; then
                 local answer="Y"
             else
+                info "$(msg FORENSICS_HOSTS_PARTIAL)"
+                echo "$unblocked_domains" | while IFS= read -r d; do
+                    echo "  $d"
+                done
                 read -r -p "$(msg FORENSICS_HOSTS_PROMPT) " answer || true
             fi
             case "${answer:-Y}" in
                 n|N) warn "$(msg SKIPPED)" ;;
                 *)
-                    echo "127.0.0.1 ${C2_DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
+                    echo "$unblocked_domains" | while IFS= read -r d; do
+                        [[ -z "$d" ]] && continue
+                        echo "127.0.0.1 $d" | sudo tee -a /etc/hosts > /dev/null
+                    done
                     log "$(msg FORENSICS_HOSTS_ADDED)"
                     ;;
             esac
@@ -1412,11 +1540,48 @@ run_module_08() {
 
     info "$(msg ENV_SCANNING)"
 
+    # .env / .key / .pem files
     if [[ -n "$ENV_FILES" ]]; then
         warn "$(msg ENV_FOUND)"
         echo "$ENV_FILES" | tee -a "$LOG_FILE"
     else
         info "$(msg ENV_NONE)"
+    fi
+
+    # Additional sensitive files that may have been exfiltrated
+    local extra_files=(
+        "$HOME/.git-credentials"
+        "$HOME/.npmrc"
+        "$HOME/.zshrc"
+    )
+    local extra_dirs=(
+        "$HOME/.subversion"
+    )
+    local found_extra=false
+    for f in "${extra_files[@]}"; do
+        [[ -f "$f" ]] && found_extra=true && break
+    done
+    if ! $found_extra; then
+        for d in "${extra_dirs[@]}"; do
+            [[ -d "$d" ]] && found_extra=true && break
+        done
+    fi
+
+    if $found_extra; then
+        echo ""
+        info "$(msg ENV_EXTRA_CHECK)"
+        for f in "${extra_files[@]}"; do
+            if [[ -f "$f" ]]; then
+                warn "  $(basename "$f") → $f"
+                echo "  $f" >> "$LOG_FILE"
+            fi
+        done
+        for d in "${extra_dirs[@]}"; do
+            if [[ -d "$d" ]]; then
+                warn "  $(basename "$d")/ → $d"
+                echo "  $d/" >> "$LOG_FILE"
+            fi
+        done
     fi
 }
 
@@ -1442,6 +1607,40 @@ run_module_09() {
             kubectl get events --sort-by='.lastTimestamp' -A 2>/dev/null | head -20 | tee -a "$LOG_FILE" || true
         fi
     fi
+
+    echo ""
+    manual "$(msg AUDIT_SSH_LOGIN)"
+    manual "$(msg AUDIT_NETWORK)"
+    echo ""
+    info "$(msg AUDIT_C2_DOMAINS)"
+    for domain in "${C2_DOMAINS[@]}"; do
+        info "  - $domain"
+    done
+}
+
+
+run_module_10() {
+    section 10 "MOD10_NAME"
+
+    if ! should_run_module 10 || ! ${MODULE_APPLICABLE[10]}; then
+        info "$(msg NPM_NONE)"
+        return
+    fi
+
+    # Show found tokens (masked), excluding comment lines
+    info "$(msg NPM_FOUND)"
+    grep -vE '^[[:space:]]*[#;]' "$HOME/.npmrc" 2>/dev/null | grep -E '_authToken=' | sed 's/\(_authToken=\).*/\1****/' | tee -a "$LOG_FILE"
+
+    if ! pause; then return; fi
+
+    local backup="$HOME/.npmrc.compromised_backup_$(date +%Y%m%d_%H%M%S)"
+    run_or_dry "backup ~/.npmrc" cp "$HOME/.npmrc" "$backup"
+    if [[ "$DRY_RUN" != true ]]; then
+        log "$(msg NPM_BACKUP) $backup"
+    fi
+
+    echo ""
+    manual "$(msg NPM_MANUAL)"
 }
 
 
@@ -1480,6 +1679,9 @@ print_summary() {
     fi
     if module_ran 7; then
         echo "  □ $(msg KEYCHAIN_MANUAL)"
+    fi
+    if module_ran 10; then
+        echo "  □ $(msg NPM_MANUAL)"
     fi
     echo ""
 }
@@ -1530,7 +1732,7 @@ main() {
     fi
 
     # Execute only selected + applicable modules
-    local mod_funcs=(run_module_00 run_module_01 run_module_02 run_module_03 run_module_04 run_module_05 run_module_06 run_module_07 run_module_08 run_module_09)
+    local mod_funcs=(run_module_00 run_module_01 run_module_02 run_module_03 run_module_04 run_module_05 run_module_06 run_module_07 run_module_08 run_module_09 run_module_10)
     for i in "${!mod_funcs[@]}"; do
         if module_ran "$i"; then
             ${mod_funcs[$i]}

@@ -144,6 +144,20 @@ K8SEOF
     name = Test User
 GITEOF
 
+    # npmrc with auth token
+    cat > "$test_home/.npmrc" <<'NPMEOF'
+//registry.npmjs.org/:_authToken=npm_faketoken123
+@myorg:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=ghp_faketoken456
+NPMEOF
+
+    # git-credentials
+    echo "https://user:faketoken@github.com" > "$test_home/.git-credentials"
+
+    # Subversion dir
+    mkdir -p "$test_home/.subversion/auth/svn.simple"
+    echo "fake-svn-cred" > "$test_home/.subversion/auth/svn.simple/fakecred"
+
     echo "$test_home"
 }
 
@@ -254,6 +268,14 @@ else
     fail "--modules 99 reports invalid"
 fi
 
+# Module 10 should be valid
+output="$(bash "$FIX_SCRIPT" --modules 10 --dry-run --yes --lang en 2>&1)" || true
+if echo "$output" | grep -q "invalid module number"; then
+    fail "--modules 10 should be valid"
+else
+    pass "--modules 10 is valid"
+fi
+
 output="$(bash "$FIX_SCRIPT" --bogus 2>&1)" || true
 if echo "$output" | grep -q "Unknown option"; then
     pass "unknown option reports error"
@@ -340,6 +362,20 @@ else
 fi
 
 rm -rf "$TEST_HOME"
+
+# --- Test 5b: npm token detection ---
+if echo "$output" | grep -q "npm.*auth token"; then
+    pass "scan detects npm auth tokens"
+else
+    fail "scan detects npm auth tokens"
+fi
+
+# --- Test 5c: git-credentials detection ---
+if echo "$output" | grep -q "git-credentials"; then
+    pass "scan detects .git-credentials"
+else
+    fail "scan detects .git-credentials"
+fi
 
 # --- Test 6: --modules selective execution ---
 echo ""
@@ -651,6 +687,113 @@ if [[ "$backup_lines" == "$zsh_lines_before" ]]; then
 else
     fail "confirm y: backup line count mismatch (expected $zsh_lines_before, got $backup_lines)"
 fi
+rm -rf "$TEST_HOME"
+
+# --- Test 11d: npm module dry-run ---
+echo ""
+echo "--- npm Module ---"
+TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
+
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --modules 10 --lang en)"
+if echo "$output" | grep -qE '^\[i\] \[10\]'; then
+    pass "--modules 10 runs npm module"
+else
+    fail "--modules 10 runs npm module"
+fi
+
+# npmrc should not be modified in dry-run
+if [[ -f "$TEST_HOME/.npmrc" ]]; then
+    npmrc_content="$(cat "$TEST_HOME/.npmrc")"
+    if echo "$npmrc_content" | grep -q "_authToken=npm_faketoken123"; then
+        pass "dry-run did not modify .npmrc"
+    else
+        fail "dry-run modified .npmrc"
+    fi
+else
+    fail ".npmrc disappeared in dry-run"
+fi
+
+rm -rf "$TEST_HOME"
+
+# --- Test 11d2: npm detection edge cases ---
+echo ""
+echo "--- npm Detection Edge Cases ---"
+
+# Plain _authToken= (no // prefix) should be detected
+NPM_HOME="$(mktemp -d)"
+echo "_authToken=plain-token-no-slash" > "$NPM_HOME/.npmrc"
+output="$(run_fix "$NPM_HOME" --dry-run --yes --lang en)"
+if echo "$output" | grep -q "npm.*auth token found"; then
+    pass "npm: detects plain _authToken= without // prefix"
+else
+    fail "npm: should detect plain _authToken= without // prefix"
+fi
+rm -rf "$NPM_HOME"
+
+# Commented-out _authToken= should NOT be detected
+NPM_HOME="$(mktemp -d)"
+cat > "$NPM_HOME/.npmrc" <<'NPMEOF'
+# //registry.npmjs.org/:_authToken=commented-out
+; _authToken=also-commented
+NPMEOF
+output="$(run_fix "$NPM_HOME" --dry-run --yes --lang en)"
+if echo "$output" | grep -q "npm.*no auth token"; then
+    pass "npm: ignores commented _authToken= lines"
+else
+    fail "npm: should ignore commented _authToken= lines"
+fi
+# Module 10 should be skip
+if echo "$output" | grep -q "Rotate npm Token.*skip"; then
+    pass "npm: module 10 marked skip for commented tokens"
+else
+    fail "npm: module 10 should be skip for commented tokens"
+fi
+rm -rf "$NPM_HOME"
+
+# --- Test 11d3: Module 8 runs with extra sensitive files but no .env ---
+echo ""
+echo "--- Module 8 Without .env Files ---"
+EXTRA_HOME="$(mktemp -d)"
+echo "https://user:token@github.com" > "$EXTRA_HOME/.git-credentials"
+mkdir -p "$EXTRA_HOME/.subversion"
+echo "cred" > "$EXTRA_HOME/.subversion/auth"
+
+output="$(run_fix "$EXTRA_HOME" --dry-run --yes --modules 8 --lang en)"
+if echo "$output" | grep -qE '^\[i\] \[8\]'; then
+    pass "module 8 runs with extra sensitive files (no .env)"
+else
+    fail "module 8 should run with extra sensitive files even without .env"
+fi
+if echo "$output" | grep -q "git-credentials"; then
+    pass "module 8 reports .git-credentials"
+else
+    fail "module 8 should report .git-credentials"
+fi
+if echo "$output" | grep -q "subversion"; then
+    pass "module 8 reports .subversion/"
+else
+    fail "module 8 should report .subversion/"
+fi
+rm -rf "$EXTRA_HOME"
+
+# --- Test 11e: Multiple C2 domains in hosts block ---
+echo ""
+echo "--- Multiple C2 Domains ---"
+TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
+
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --modules 0 --lang en)"
+if echo "$output" | grep -q "malicious domains"; then
+    pass "forensics references multiple malicious domains"
+else
+    fail "forensics should reference multiple malicious domains"
+fi
+
 rm -rf "$TEST_HOME"
 
 # --- Test 12: Chinese dry-run ---

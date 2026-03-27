@@ -21,4 +21,13 @@ run_module_09() {
             kubectl get events --sort-by='.lastTimestamp' -A 2>/dev/null | head -20 | tee -a "$LOG_FILE" || true
         fi
     fi
+
+    echo ""
+    manual "$(msg AUDIT_SSH_LOGIN)"
+    manual "$(msg AUDIT_NETWORK)"
+    echo ""
+    info "$(msg AUDIT_C2_DOMAINS)"
+    for domain in "${C2_DOMAINS[@]}"; do
+        info "  - $domain"
+    done
 }

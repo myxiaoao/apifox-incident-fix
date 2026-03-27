@@ -7,6 +7,18 @@ RISK_START="2026-03-04"
 RISK_END="2026-03-22"
 FIX_VERSION="2.8.19"
 C2_DOMAIN="apifox.it.com"
+# All known malicious domains from the incident
+C2_DOMAINS=(
+    "apifox.it.com"
+    "cdn.openroute.dev"
+    "upgrade.feishu.it.com"
+    "system.toshinkyo.or.jp"
+    "panel.feishu.it.com"
+    "d.feishu.it.com"
+    "api.feishu.it.com"
+    "ns.feishu.it.com"
+    "ns.openroute.dev"
+)
 ANNOUNCEMENT_URL="https://mp.weixin.qq.com/s/GpACQdnhVNsMn51cm4hZig"
 SECURITY_EMAIL="security@apifox.com"
 

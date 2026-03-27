@@ -284,9 +284,32 @@ is_c2_blocked() {
     grep -qE "^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0|::1)[[:space:]]+([^#]*[[:space:]]+)*${C2_DOMAIN}([[:space:]]|$)" /etc/hosts 2>/dev/null
 }
 
+# Check how many C2 domains are blocked
+count_blocked_c2_domains() {
+    local blocked=0
+    for domain in "${C2_DOMAINS[@]}"; do
+        local escaped_domain
+        escaped_domain="$(echo "$domain" | sed 's/\./\\./g')"
+        if grep -qE "^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0|::1)[[:space:]]+([^#]*[[:space:]]+)*${escaped_domain}([[:space:]]|$)" /etc/hosts 2>/dev/null; then
+            ((blocked++))
+        fi
+    done
+    echo "$blocked"
+}
+
+get_unblocked_c2_domains() {
+    for domain in "${C2_DOMAINS[@]}"; do
+        local escaped_domain
+        escaped_domain="$(echo "$domain" | sed 's/\./\\./g')"
+        if ! grep -qE "^[[:space:]]*(127\.0\.0\.1|0\.0\.0\.0|::1)[[:space:]]+([^#]*[[:space:]]+)*${escaped_domain}([[:space:]]|$)" /etc/hosts 2>/dev/null; then
+            echo "$domain"
+        fi
+    done
+}
+
 # --- Module Applicability Array ---
 declare -a MODULE_APPLICABLE
-for i in {0..9}; do
+for i in {0..10}; do
     MODULE_APPLICABLE[$i]=true
 done
 
@@ -319,7 +342,7 @@ run_system_scan() {
     local leveldb_dir="${data_dir:+${data_dir}/Local Storage/leveldb}"
     LEVELDB_MATCHES=""
     if [[ -n "$leveldb_dir" && -d "$leveldb_dir" ]]; then
-        LEVELDB_MATCHES="$(grep -arlE "rl_mc|rl_headers" "$leveldb_dir" 2>/dev/null || true)"
+        LEVELDB_MATCHES="$(grep -arlE "_rl_mc|_rl_headers|common\.accessToken|af_uuid|af_os|af_user|af_name|af_apifox_user|af_apifox_name" "$leveldb_dir" 2>/dev/null || true)"
         if [[ -n "$LEVELDB_MATCHES" ]]; then
             printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_LEVELDB):" "$(msg SCAN_MALICIOUS)"
         else
@@ -340,11 +363,16 @@ run_system_scan() {
         fi
     fi
 
-    # Hosts block
-    if is_c2_blocked; then
-        printf "  %-20s ${GREEN}%s${NC}\n" "$(msg SCAN_HOSTS):" "${C2_DOMAIN} $(msg SCAN_HOSTS_BLOCKED)"
+    # Hosts block — check all C2 domains
+    local blocked_count
+    blocked_count="$(count_blocked_c2_domains)"
+    local total_c2="${#C2_DOMAINS[@]}"
+    if [[ "$blocked_count" -eq "$total_c2" ]]; then
+        printf "  %-20s ${GREEN}%s${NC}\n" "$(msg SCAN_HOSTS):" "${blocked_count}/${total_c2} $(msg SCAN_HOSTS_ALL_BLOCKED)"
+    elif [[ "$blocked_count" -gt 0 ]]; then
+        printf "  %-20s ${YELLOW}%s${NC}\n" "$(msg SCAN_HOSTS):" "${blocked_count}/${total_c2} $(msg SCAN_HOSTS_PARTIAL)"
     else
-        printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_HOSTS):" "${C2_DOMAIN} $(msg SCAN_HOSTS_NOT_BLOCKED)"
+        printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_HOSTS):" "$(msg SCAN_HOSTS_NOT_BLOCKED)"
     fi
 
     echo ""
@@ -416,14 +444,42 @@ run_system_scan() {
         MODULE_APPLICABLE[3]=false
     fi
 
+    # npmrc — match _authToken= lines, excluding comments (# or ;)
+    if [[ -f "$HOME/.npmrc" ]]; then
+        if grep -vE '^[[:space:]]*[#;]' "$HOME/.npmrc" 2>/dev/null | grep -qE '_authToken=' 2>/dev/null; then
+            printf "    %-18s ${YELLOW}%s${NC}\n" "npm:" "$(msg SCAN_NPMRC_TOKEN)"
+            MODULE_APPLICABLE[10]=true
+        else
+            printf "    %-18s %s\n" "npm:" "$(msg SCAN_NPMRC_NO_TOKEN)"
+            MODULE_APPLICABLE[10]=false
+        fi
+    else
+        printf "    %-18s %s\n" "npm:" "$(msg SCAN_NOT_FOUND)"
+        MODULE_APPLICABLE[10]=false
+    fi
+
+    # Subversion credentials
+    if [[ -d "$HOME/.subversion" ]]; then
+        printf "    %-18s %s\n" "Subversion:" "~/.subversion/ $(msg SCAN_SVN_FOUND)"
+    fi
+
     # .env files
     ENV_FILES="$(scan_env_files)"
     local env_count=0
     if [[ -n "$ENV_FILES" ]]; then
         env_count="$(echo "$ENV_FILES" | wc -l | tr -d ' ')"
     fi
+    # Extra sensitive files that may have been exfiltrated
+    HAS_EXTRA_SENSITIVE=false
+    for ef in "$HOME/.git-credentials" "$HOME/.npmrc" "$HOME/.zshrc"; do
+        [[ -f "$ef" ]] && HAS_EXTRA_SENSITIVE=true && break
+    done
+    [[ -d "$HOME/.subversion" ]] && HAS_EXTRA_SENSITIVE=true
     if [[ "$env_count" -gt 0 ]]; then
         printf "    %-18s %d found\n" "$(msg SCAN_ENV):" "$env_count"
+        MODULE_APPLICABLE[8]=true
+    elif $HAS_EXTRA_SENSITIVE; then
+        printf "    %-18s %s\n" "$(msg SCAN_ENV):" "$(msg SCAN_NOT_FOUND)"
         MODULE_APPLICABLE[8]=true
     else
         printf "    %-18s %s\n" "$(msg SCAN_ENV):" "$(msg SCAN_NOT_FOUND)"
@@ -444,7 +500,7 @@ run_system_scan() {
     # Module summary
     echo ""
     printf "  ${BOLD}%s:${NC}\n" "$(msg SCAN_MODULES_TITLE)"
-    local mod_names=("MOD0_NAME" "MOD1_NAME" "MOD2_NAME" "MOD3_NAME" "MOD4_NAME" "MOD5_NAME" "MOD6_NAME" "MOD7_NAME" "MOD8_NAME" "MOD9_NAME")
+    local mod_names=("MOD0_NAME" "MOD1_NAME" "MOD2_NAME" "MOD3_NAME" "MOD4_NAME" "MOD5_NAME" "MOD6_NAME" "MOD7_NAME" "MOD8_NAME" "MOD9_NAME" "MOD10_NAME")
     for i in "${!mod_names[@]}"; do
         local status_icon status_text
         if ${MODULE_APPLICABLE[$i]}; then

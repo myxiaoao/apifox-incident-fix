@@ -24,6 +24,7 @@ FILES=(
     "$SRC/modules/07-keychain.sh"
     "$SRC/modules/08-env-scan.sh"
     "$SRC/modules/09-audit.sh"
+    "$SRC/modules/10-npm.sh"
     "$SRC/footer.sh"
 )
 

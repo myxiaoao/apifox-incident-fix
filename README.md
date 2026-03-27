@@ -4,12 +4,15 @@
 
 ## Background
 
-On March 25, 2026, Apifox officially confirmed that their **public SaaS desktop client** was compromised by a supply chain attack. A dynamically loaded external JavaScript file was maliciously tampered with.
+Apifox is an API collaboration platform developed by Guangzhou Ruihu Technology Co., Ltd. Its desktop client is built on the Electron framework.
+
+Due to the application not strictly enabling Electron's sandbox security parameter and exposing Node.js API interfaces, attackers hijacked the CDN-hosted `apifox-app-event-tracking.min.js` file (size changed from 34K to 77K), replacing it with a malicious version. The malicious script dynamically loads attack payloads from unofficial domains, collecting SSH keys, Git credentials, shell history, process lists and other sensitive information under certain conditions, and reports them to attacker-controlled servers. It can then pull and execute backdoor programs and attempt lateral movement.
 
 - **Risk Window:** March 4, 2026 – March 22, 2026
 - **Affected:** Public SaaS desktop client only (Web version and self-hosted deployments are NOT affected)
-- **C2 Domain:** `apifox.it.com` (hosted on Cloudflare, active for 18 days, now offline)
-- **Potential Data Exfiltrated:** `~/.ssh/`, `~/.zsh_history`, `~/.bash_history`, `~/.git-credentials`
+- **C2 Domains:** `apifox.it.com`, `cdn.openroute.dev`, `upgrade.feishu.it.com`, `system.toshinkyo.or.jp`, `*.feishu.it.com`, `ns.openroute.dev`
+- **Potential Data Exfiltrated:** `~/.ssh/`, `~/.git-credentials`, `~/.zsh_history`, `~/.bash_history`, `~/.kube/*`, `~/.npmrc`, `~/.zshrc`, `~/.subversion/*`
+- **Malicious Indicators:** `_rl_headers`, `_rl_mc` keys in localStorage; HTTP headers containing `af_uuid`, `af_os`, `af_user`, `af_name`, `af_apifox_user`, `af_apifox_name`; reading `common.accessToken`; execution of `ps aux` / `tasklist`
 - **Fix Version:** 2.8.19+
 - **Official Announcement:** https://mp.weixin.qq.com/s/GpACQdnhVNsMn51cm4hZig
 - **Security Contact:** security@apifox.com
@@ -28,7 +31,7 @@ The tool automatically scans your system and guides you through credential rotat
 
 | Module | Description |
 |--------|-------------|
-| 0 - Forensics | Check LevelDB for malicious markers, verify Apifox version, block C2 domain in /etc/hosts |
+| 0 - Forensics | Check LevelDB for malicious markers (_rl_headers, _rl_mc, af_uuid, etc.), verify Apifox version, block all C2 domains in /etc/hosts |
 | 1 - Kill Process | Terminate running Apifox processes |
 | 2 - SSH Keys | Scan, backup, and rotate SSH private keys with platform hints |
 | 3 - Shell History | Clean sensitive tokens from zsh/bash/fish history |
@@ -36,10 +39,11 @@ The tool automatically scans your system and guides you through credential rotat
 | 5 - K8s Credentials | Backup kubeconfig for re-issuance |
 | 6 - Docker Credentials | Logout from all configured Docker registries |
 | 7 - macOS Keychain | Check for apifox-related Keychain entries (macOS only) |
-| 8 - .env Scan | Find .env, .key, .pem files in common development directories |
-| 9 - Audit | Guide anomalous activity review (GitHub security log, git history, K8s events) |
+| 8 - .env Scan | Find .env, .key, .pem files and check additional exfiltrated files (.git-credentials, .npmrc, .zshrc, .subversion/) |
+| 9 - Audit | Guide anomalous activity review (GitHub security log, git history, K8s events, SSH login logs, network traffic to C2 domains) |
+| 10 - npm Token | Backup ~/.npmrc and guide npm token rotation |
 
-**Important:** For credential files (SSH keys, history), backups are always created before any modification. The tool may also terminate Apifox processes, add a blocking entry to `/etc/hosts` (requires sudo), and rewrite shell history files (after backup). Use `--dry-run` to preview all changes before executing.
+**Important:** For credential files (SSH keys, history, npmrc), backups are always created before any modification. The tool may also terminate Apifox processes, add blocking entries for all known malicious domains to `/etc/hosts` (requires sudo), and rewrite shell history files (after backup). Use `--dry-run` to preview all changes before executing.
 
 ## Supported Platforms
 
@@ -66,9 +70,13 @@ The tool will print a personalized checklist at the end. Common manual steps inc
 - Add new SSH public keys to GitHub / GitLab / other platforms
 - Revoke suspicious GitHub Personal Access Tokens
 - Regenerate ngrok authtoken and other leaked tokens
-- Contact cluster admin to re-issue kubeconfig
+- Contact cluster admin to re-issue kubeconfig and rotate OIDC tokens
 - Change Docker Hub / Harbor passwords and re-login
+- Revoke npm registry tokens and re-login
+- Rotate any passwords/tokens/API keys exposed in shell history
 - Review macOS Keychain entries
+- Review server SSH login logs for anomalous access
+- Block all malicious domains via firewall/DNS
 - Notify your team
 
 ## How It Works
@@ -91,7 +99,7 @@ src/
 │   ├── common.sh      # Logging, colors, utilities
 │   └── detect.sh      # Platform detection, system scanning
 ├── modules/
-│   ├── 00-forensics.sh ... 09-audit.sh
+│   ├── 00-forensics.sh ... 10-npm.sh
 └── footer.sh          # Main orchestration
 ```
 

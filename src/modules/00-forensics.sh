@@ -28,22 +28,36 @@ run_module_00() {
         fi
     fi
 
-    # --- Hosts Block ---
-    if is_c2_blocked; then
+    # --- Hosts Block (all malicious domains) ---
+    local unblocked_domains
+    unblocked_domains="$(get_unblocked_c2_domains)"
+    if [[ -z "$unblocked_domains" ]]; then
         log "$(msg FORENSICS_HOSTS_EXISTS)"
     else
+        local unblocked_count
+        unblocked_count="$(echo "$unblocked_domains" | wc -l | tr -d ' ')"
         if [[ "$DRY_RUN" == true ]]; then
-            info "$(msg DRY_RUN_PREFIX): add 127.0.0.1 ${C2_DOMAIN} to /etc/hosts"
+            info "$(msg DRY_RUN_PREFIX): add ${unblocked_count} malicious domains to /etc/hosts"
+            echo "$unblocked_domains" | while IFS= read -r d; do
+                info "  127.0.0.1 $d"
+            done
         else
             if [[ "$YES_MODE" == true ]]; then
                 local answer="Y"
             else
+                info "$(msg FORENSICS_HOSTS_PARTIAL)"
+                echo "$unblocked_domains" | while IFS= read -r d; do
+                    echo "  $d"
+                done
                 read -r -p "$(msg FORENSICS_HOSTS_PROMPT) " answer || true
             fi
             case "${answer:-Y}" in
                 n|N) warn "$(msg SKIPPED)" ;;
                 *)
-                    echo "127.0.0.1 ${C2_DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
+                    echo "$unblocked_domains" | while IFS= read -r d; do
+                        [[ -z "$d" ]] && continue
+                        echo "127.0.0.1 $d" | sudo tee -a /etc/hosts > /dev/null
+                    done
                     log "$(msg FORENSICS_HOSTS_ADDED)"
                     ;;
             esac

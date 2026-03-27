@@ -55,15 +55,15 @@ validate_selected_modules() {
     IFS=',' read -ra nums <<< "$SELECTED_MODULES"
     for n in "${nums[@]}"; do
         [[ -z "$n" ]] && continue
-        if ! [[ "$n" =~ ^[0-9]$ ]]; then
-            echo "Error: invalid module number '$n' (valid: 0-9)" >&2
+        if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ "$n" -gt 10 ]]; then
+            echo "Error: invalid module number '$n' (valid: 0-10)" >&2
             echo "Run with --help for usage information" >&2
             exit 1
         fi
         any_valid=true
     done
     if ! $any_valid; then
-        echo "Error: --modules requires at least one valid module number (0-9)" >&2
+        echo "Error: --modules requires at least one valid module number (0-10)" >&2
         exit 1
     fi
 }
