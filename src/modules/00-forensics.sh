@@ -13,6 +13,12 @@ run_module_00() {
     if [[ -n "$LEVELDB_MATCHES" ]]; then
         error "$(msg FORENSICS_FOUND)"
         echo "$LEVELDB_MATCHES" | tee -a "$LOG_FILE"
+        if [[ -n "$LEVELDB_SUSPICIOUS" ]]; then
+            echo "$LEVELDB_SUSPICIOUS" | tee -a "$LOG_FILE"
+        fi
+    elif [[ -n "$LEVELDB_SUSPICIOUS" ]]; then
+        warn "$(msg FORENSICS_SUSPICIOUS)"
+        echo "$LEVELDB_SUSPICIOUS" | tee -a "$LOG_FILE"
     elif [[ -n "$(get_apifox_data_dir)" ]]; then
         info "$(msg FORENSICS_CLEAN)"
     else

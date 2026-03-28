@@ -12,7 +12,9 @@ Due to the application not strictly enabling Electron's sandbox security paramet
 - **Affected:** Public SaaS desktop client only (Web version and self-hosted deployments are NOT affected)
 - **C2 Domains:** `apifox.it.com`, `cdn.openroute.dev`, `upgrade.feishu.it.com`, `system.toshinkyo.or.jp`, `*.feishu.it.com`, `ns.openroute.dev`
 - **Potential Data Exfiltrated:** `~/.ssh/`, `~/.git-credentials`, `~/.zsh_history`, `~/.bash_history`, `~/.kube/*`, `~/.npmrc`, `~/.zshrc`, `~/.subversion/*`
-- **Malicious Indicators:** `_rl_headers`, `_rl_mc` keys in localStorage; HTTP headers containing `af_uuid`, `af_os`, `af_user`, `af_name`, `af_apifox_user`, `af_apifox_name`; reading `common.accessToken`; execution of `ps aux` / `tasklist`
+- **Malicious Indicators:**
+  - **Confirmed (Remote Loader):** `_rl_headers`, `_rl_mc` keys in localStorage
+  - **Suspicious (data exfiltration fields, may also be normal Apifox data):** `af_uuid`, `af_os`, `af_user`, `af_name`, `af_apifox_user`, `af_apifox_name` in HTTP headers; reading `common.accessToken`; execution of `ps aux` / `tasklist`
 - **Fix Version:** 2.8.19+
 - **Official Announcement:** https://mp.weixin.qq.com/s/GpACQdnhVNsMn51cm4hZig
 - **Security Contact:** security@apifox.com
@@ -31,7 +33,7 @@ The tool automatically scans your system and guides you through credential rotat
 
 | Module | Description |
 |--------|-------------|
-| 0 - Forensics | Check LevelDB for malicious markers (_rl_headers, _rl_mc, af_uuid, etc.), verify Apifox version, block all C2 domains in /etc/hosts |
+| 0 - Forensics | Two-tier LevelDB detection: confirmed malicious markers (`_rl_mc`/`_rl_headers`) trigger red alert, suspicious data fields (`af_uuid`, `af_os`, etc.) that may be normal Apifox data trigger yellow warning; verify Apifox version; block all C2 domains in /etc/hosts |
 | 1 - Kill Process | Terminate running Apifox processes |
 | 2 - SSH Keys | Scan, backup, and rotate SSH private keys with platform hints |
 | 3 - Shell History | Clean sensitive tokens from zsh/bash/fish history |

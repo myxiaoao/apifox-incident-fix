@@ -336,15 +336,22 @@ run_system_scan() {
         MODULE_APPLICABLE[1]=false
     fi
 
-    # LevelDB check
+    # LevelDB check — two-tier detection:
+    #   Tier 1 (confirmed): _rl_mc, _rl_headers — Remote Loader markers unique to the attack
+    #   Tier 2 (suspicious): af_uuid, af_os, etc. — data exfiltration fields that may also
+    #          exist as normal Apifox application data (higher false-positive rate)
     local data_dir
     data_dir="$(get_apifox_data_dir)"
     local leveldb_dir="${data_dir:+${data_dir}/Local Storage/leveldb}"
     LEVELDB_MATCHES=""
+    LEVELDB_SUSPICIOUS=""
     if [[ -n "$leveldb_dir" && -d "$leveldb_dir" ]]; then
-        LEVELDB_MATCHES="$(grep -arlE "_rl_mc|_rl_headers|common\.accessToken|af_uuid|af_os|af_user|af_name|af_apifox_user|af_apifox_name" "$leveldb_dir" 2>/dev/null || true)"
+        LEVELDB_MATCHES="$(grep -arlE "_rl_mc|_rl_headers" "$leveldb_dir" 2>/dev/null || true)"
+        LEVELDB_SUSPICIOUS="$(grep -arlE "af_uuid|af_os|af_user[^_]|af_name|af_apifox_user|af_apifox_name|common\.accessToken" "$leveldb_dir" 2>/dev/null || true)"
         if [[ -n "$LEVELDB_MATCHES" ]]; then
             printf "  %-20s ${RED}%s${NC}\n" "$(msg SCAN_LEVELDB):" "$(msg SCAN_MALICIOUS)"
+        elif [[ -n "$LEVELDB_SUSPICIOUS" ]]; then
+            printf "  %-20s ${YELLOW}%s${NC}\n" "$(msg SCAN_LEVELDB):" "$(msg SCAN_SUSPICIOUS)"
         else
             printf "  %-20s %s\n" "$(msg SCAN_LEVELDB):" "$(msg SCAN_CLEAN)"
         fi

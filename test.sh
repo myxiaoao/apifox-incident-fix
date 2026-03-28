@@ -796,6 +796,93 @@ fi
 
 rm -rf "$TEST_HOME"
 
+# --- Test 11f: LevelDB two-tier detection ---
+echo ""
+echo "--- LevelDB Detection ---"
+
+# Tier 1: confirmed malicious markers (_rl_mc/_rl_headers) → MALICIOUS
+TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
+
+if [[ "$OS_TYPE" == "macos" ]]; then
+    LEVELDB_DIR="$TEST_HOME/Library/Application Support/apifox/Local Storage/leveldb"
+else
+    LEVELDB_DIR="$TEST_HOME/.config/apifox/Local Storage/leveldb"
+fi
+mkdir -p "$LEVELDB_DIR"
+# Write confirmed malicious markers into a fake LevelDB log
+printf '_file:// _rl_headers _file:// _rl_mc\x00\x00META:file' > "$LEVELDB_DIR/000001.log"
+
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --lang en)"
+if echo "$output" | grep -q "MALICIOUS MARKERS FOUND"; then
+    pass "LevelDB tier 1: confirmed markers trigger MALICIOUS"
+else
+    fail "LevelDB tier 1: confirmed markers should trigger MALICIOUS"
+fi
+rm -rf "$TEST_HOME"
+
+# Tier 2: only suspicious fields (af_name, af_os) → suspicious, not MALICIOUS
+TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
+
+if [[ "$OS_TYPE" == "macos" ]]; then
+    LEVELDB_DIR="$TEST_HOME/Library/Application Support/apifox/Local Storage/leveldb"
+else
+    LEVELDB_DIR="$TEST_HOME/.config/apifox/Local Storage/leveldb"
+fi
+mkdir -p "$LEVELDB_DIR"
+# Write only normal-looking Apifox data fields (no _rl_mc/_rl_headers)
+printf '{"af_name":"Test User","af_os":"darwin","af_uuid":"abc-123"}' > "$LEVELDB_DIR/000001.log"
+
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --lang en)"
+if echo "$output" | grep -q "MALICIOUS MARKERS FOUND"; then
+    fail "LevelDB tier 2: suspicious-only should NOT trigger MALICIOUS"
+else
+    pass "LevelDB tier 2: suspicious-only does not trigger MALICIOUS"
+fi
+if echo "$output" | grep -qi "suspicious\|可疑"; then
+    pass "LevelDB tier 2: suspicious fields trigger warning"
+else
+    fail "LevelDB tier 2: suspicious fields should trigger warning"
+fi
+rm -rf "$TEST_HOME"
+
+# Clean: no markers at all → clean
+TEST_HOME="$(setup_test_home)"
+STUB_DIR="$TEST_HOME/.test-stubs"
+mkdir -p "$STUB_DIR"
+has_cmd kubectl || create_path_stub "$STUB_DIR" "kubectl"
+
+if [[ "$OS_TYPE" == "macos" ]]; then
+    LEVELDB_DIR="$TEST_HOME/Library/Application Support/apifox/Local Storage/leveldb"
+else
+    LEVELDB_DIR="$TEST_HOME/.config/apifox/Local Storage/leveldb"
+fi
+mkdir -p "$LEVELDB_DIR"
+printf '{"some_normal_key":"value","settings":"theme_dark"}' > "$LEVELDB_DIR/000001.log"
+
+output="$(PATH="$STUB_DIR:$PATH" run_fix "$TEST_HOME" --dry-run --yes --lang en)"
+if echo "$output" | grep -q "MALICIOUS MARKERS FOUND"; then
+    fail "LevelDB clean: should not trigger MALICIOUS"
+else
+    pass "LevelDB clean: no false positive"
+fi
+if echo "$output" | grep -qi "suspicious\|可疑"; then
+    fail "LevelDB clean: should not trigger suspicious"
+else
+    pass "LevelDB clean: no false suspicious"
+fi
+if echo "$output" | grep -q "No known markers found"; then
+    pass "LevelDB clean: shows clean status"
+else
+    fail "LevelDB clean: should show clean status"
+fi
+rm -rf "$TEST_HOME"
+
 # --- Test 12: Chinese dry-run ---
 echo ""
 echo "--- Chinese Language ---"

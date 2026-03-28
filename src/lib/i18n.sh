@@ -74,6 +74,9 @@ MSG_SCAN_LEVELDB_CN="Apifox LevelDB"
 MSG_SCAN_MALICIOUS_EN="MALICIOUS MARKERS FOUND"
 MSG_SCAN_MALICIOUS_CN="发现恶意标记"
 
+MSG_SCAN_SUSPICIOUS_EN="Suspicious data fields found (may be normal Apifox data, see forensics report)"
+MSG_SCAN_SUSPICIOUS_CN="发现可疑数据字段（可能为正常 Apifox 数据，详见取证报告）"
+
 MSG_SCAN_CLEAN_EN="No known markers found"
 MSG_SCAN_CLEAN_CN="未发现已知恶意标记"
 
@@ -181,11 +184,14 @@ MSG_MOD10_NAME_EN="Rotate npm Token"
 MSG_MOD10_NAME_CN="轮换 npm Token"
 
 # -- Module 00: Forensics --
-MSG_FORENSICS_CHECKING_EN="Checking Apifox LevelDB for malicious markers (_rl_headers, _rl_mc, common.accessToken, af_uuid, etc.)..."
-MSG_FORENSICS_CHECKING_CN="检查 Apifox LevelDB 是否存在恶意标记（_rl_headers、_rl_mc、common.accessToken、af_uuid 等）..."
+MSG_FORENSICS_CHECKING_EN="Checking Apifox LevelDB for malicious markers..."
+MSG_FORENSICS_CHECKING_CN="检查 Apifox LevelDB 是否存在恶意标记..."
 
-MSG_FORENSICS_FOUND_EN="Malicious markers found! Matched files:"
-MSG_FORENSICS_FOUND_CN="发现恶意载荷痕迹！匹配文件："
+MSG_FORENSICS_FOUND_EN="Confirmed malicious markers found (_rl_mc/_rl_headers)! Matched files:"
+MSG_FORENSICS_FOUND_CN="发现确认的恶意标记（_rl_mc/_rl_headers）！匹配文件："
+
+MSG_FORENSICS_SUSPICIOUS_EN="Suspicious data fields found (af_uuid, af_os, etc.) but no confirmed malicious markers (_rl_mc/_rl_headers). These fields may be normal Apifox application data. Matched files:"
+MSG_FORENSICS_SUSPICIOUS_CN="发现可疑数据字段（af_uuid、af_os 等），但未发现确认的恶意标记（_rl_mc/_rl_headers）。这些字段可能为 Apifox 正常应用数据。匹配文件："
 
 MSG_FORENSICS_CLEAN_EN="No known malicious markers found in LevelDB (does not guarantee safety, recommend continuing)"
 MSG_FORENSICS_CLEAN_CN="未在 LevelDB 中发现已知恶意标记（但不代表安全，建议继续执行）"
